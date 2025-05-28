@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.13.10"
+__generated_with = "0.13.13"
 app = marimo.App(width="medium")
 
 
@@ -114,10 +114,14 @@ def _(df):
     y_col = "Total Member"        # Adjust these to match your actual column names
 
     # Create the plot
+    # Convert Polars Series to Python lists
+    x_values = df[x_col].to_list()
+    y_values = df[y_col].to_list()
+    
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=df[x_col], 
-        y=df[y_col],
+        x=x_values, 
+        y=y_values,
         line=dict(color="#af312e"),
         name="Total Members"  # Changed from y_col to the desired display name
         )
@@ -331,98 +335,102 @@ def _(df, mo, pl):
         )
         return quarterly_table, quarterly_display
 
-    _()
-    return
-
+    # Call the inner function and return its results
+    return _()
 
 @app.cell
-def _(go, pl, quarterly_display, updated_quarterly_display):
+def _(go, pl):
+    """Main analysis function that coordinates the data flow.
+    
+    Args:
+        go: Plotly graph_objects module
+        pl: Polars module
+    """
     def _():
-        def _():
-            from plotly.subplots import make_subplots
+        # Get the quarterly display data
+        # We only need the display data, not the table
+        _, quarterly_display = _()
+        
+        # Get the updated quarterly data
+        _, updated_quarterly_display = _()
+        
+        # Filter quarterly data for Q4 indicators
+        quarterly_data = quarterly_display.filter(
+            pl.col("Quarter").str.contains("Q4") &
+            pl.col("Quarterly Total").is_not_null() &
+            pl.col("QoQ Growth (%)").is_not_null()
+        ).sort("quarter_id")
 
-            # Filter quarterly data for Q4 indicators
-            quarterly_data = quarterly_display.filter(
-                pl.col("Quarter").str.contains("Q4") &
-                pl.col("Quarterly Total").is_not_null() &
-                pl.col("QoQ Growth (%)").is_not_null()
-            ).sort("quarter_id")
+        # Convert cumulative values to actual quarterly values
+        updated_quarterly_display = updated_quarterly_display.with_columns(
+            pl.col("Quarterly Total") - pl.col("Quarterly Total").shift(1).over("Year").fill_null(0)
+        )
 
-            # Convert cumulative values to actual quarterly values
-            updated_quarterly_display = updated_quarterly_display.with_columns(
-                pl.col("Quarterly Total") - pl.col("Quarterly Total").shift(1).over("Year").fill_null(0)
+        # Keep all quarters for the line plot
+        quarterly_line_data = updated_quarterly_display.filter(
+            pl.col("Quarterly Total").is_not_null()
+        ).sort("quarter_id")
+
+        # Sort data by quarter_id
+        quarterly_data_by_index = quarterly_data.sort("quarter_id")
+        
+        # Create a single figure that will contain both plots
+        combined_quarterly_figure = go.Figure()
+
+        # Calculate positions for indicators (evenly spaced along the top)
+        n_indicators = len(quarterly_data)
+        x_positions = [i/(n_indicators+1) for i in range(1, n_indicators+1)]
+
+        # Debug: Print the data being used for indicators
+        print("\nIndicator Data (Q4 only):")
+        print(quarterly_data_by_index.select(["quarter_id", "Quarter", "Year", "Quarterly Total"]))
+
+        # Initialize previous values dictionary
+        prev_values = {}
+        
+        # Add indicators
+        for i, row in enumerate(quarterly_data_by_index.rows(named=True), 1):
+            current_year = row["Year"]
+            current_value = row["Quarterly Total"]
+            current_quarter = row["quarter_id"]
+            print(f"\nAdding indicator for {current_quarter}: {current_value:,.0f} members")
+
+            # Get previous year's value if it exists
+            prev_value = prev_values.get(current_year - 1)
+
+            # Calculate delta if we have a previous value
+            if prev_value is not None and prev_value != 0:
+                delta_config = {
+                    "reference": prev_value,
+                    "valueformat": ".1%",
+                    "suffix": "",
+                    "increasing": {"color": "green"},
+                    "decreasing": {"color": "red"},
+                    "relative": True
+                }
+                mode = "number+delta"
+            else:
+                delta_config = None
+                mode = "number"
+
+            # Add indicator centered above the main plot
+            combined_quarterly_figure.add_trace(
+                go.Indicator(
+                    mode=mode,
+                    value=current_value,
+                    delta=delta_config,
+                    title={"text": f"Q4 {int(current_year)}", "font": {"size": 14, "family": "Helvetica Neue", "color": "#7f8c8d"}},
+                    number={"font": {"size": 22, "family": "Helvetica Neue", "color": "#2c3e50"}},
+                    domain={
+                        'x': [x_positions[i-1] - 0.4/n_indicators, x_positions[i-1] + 0.4/n_indicators],
+                        'y': [0.85, 0.95]
+                    },
+                    align="center"
+                )
             )
 
-            # Keep all quarters for the line plot
-            quarterly_line_data = updated_quarterly_display.filter(
-                pl.col("Quarterly Total").is_not_null()
-            ).sort("quarter_id")
-
-            # Set up single row layout with all indicators in one row
-            n_indicators = len(quarterly_data)
-            n_cols = n_indicators
-            n_rows = 1
-
-            # Sort data by quarter_id
-            quarterly_data_by_index = quarterly_data.sort("quarter_id")
-
-            # Create a single figure that will contain both plots
-            combined_quarterly_figure = go.Figure()
-
-            # Calculate positions for indicators (evenly spaced along the top)
-            x_positions = [i/(n_indicators+1) for i in range(1, n_indicators+1)]
-
-            # Initialize previous values dictionary
-            prev_values = {}
-
-            # Debug: Print the data being used for indicators
-            print("\nIndicator Data (Q4 only):")
-            print(quarterly_data_by_index.select(["quarter_id", "Quarter", "Year", "Quarterly Total"]))
-
-            # Add indicators
-            for i, row in enumerate(quarterly_data_by_index.rows(named=True), 1):
-                current_year = row["Year"]
-                current_value = row["Quarterly Total"]
-                current_quarter = row["quarter_id"]
-                print(f"\nAdding indicator for {current_quarter}: {current_value:,.0f} members")
-
-                # Get previous year's value if it exists
-                prev_value = prev_values.get(current_year - 1)
-
-                # Calculate delta if we have a previous value
-                if prev_value is not None and prev_value != 0:
-                    growth_rate = (current_value - prev_value) / prev_value
-                    delta_config = {
-                        "reference": prev_value,
-                        "valueformat": ".1%",
-                        "suffix": "",
-                        "increasing": {"color": "green"},
-                        "decreasing": {"color": "red"},
-                        "relative": True
-                    }
-                    mode = "number+delta"
-                else:
-                    delta_config = None
-                    mode = "number"
-
-                # Add indicator centered above the main plot
-                combined_quarterly_figure.add_trace(
-                    go.Indicator(
-                        mode=mode,
-                        value=current_value,
-                        delta=delta_config,
-                        title={"text": f"Q4 {int(current_year)}", "font": {"size": 14, "family": "Helvetica Neue", "color": "#7f8c8d"}},
-                        number={"font": {"size": 22, "family": "Helvetica Neue", "color": "#2c3e50"}},
-                        domain={
-                            'x': [x_positions[i-1] - 0.4/n_indicators, x_positions[i-1] + 0.4/n_indicators],
-                            'y': [0.85, 0.95]
-                        },
-                        align="center"
-                    )
-                )
-
-                # Store current value for next iteration
-                prev_values[current_year] = current_value
+            # Store current value for next iteration
+            prev_values[current_year] = current_value
 
             # Debug: Print column names and first row of updated_quarterly_display
             print("Available columns in updated_quarterly_display:", updated_quarterly_display.columns)
@@ -569,10 +577,12 @@ def _(df, mo, pl):
 
         print("Table created successfully")
 
+        # Return both the table and the display data
+        return quarterly_table, updated_quarterly_display
+
     except Exception as e:
         print("Error occurred:", str(e))
         raise
-    return (updated_quarterly_display,)
 
 
 if __name__ == "__main__":
