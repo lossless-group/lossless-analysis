@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lossless-analysis-workspace"
+version = "0.1.0"
+description = "Lossless analysis project"
+authors = [
+    {name = "Lossless Team"}
+]
+dependencies = [
+    "marimo>=0.13.13",
+]

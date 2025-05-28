@@ -1,0 +1,11 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+.env
+
+private-data/*
+
+# Python package metadata
+*.egg-info/
