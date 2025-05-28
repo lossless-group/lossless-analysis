@@ -42,31 +42,36 @@ def _(f, mo):
 @app.cell
 def _(df, mo, pl):
     # Process data with proper null handling
-    df_final = df.sort("month_count").with_columns([
-        # Calculate MoM growth with null handling
-        pl.when(pl.col("Total Member").is_not_null())
-          .then(pl.col("Total Member").pct_change())
-          .otherwise(None)
-          .alias("mom_growth"),
+    def process_data(df, pl):
+        df_final = df.sort("month_count").with_columns([
+            # Calculate MoM growth with null handling
+            pl.when(pl.col("Total Member").is_not_null())
+                .then(pl.col("Total Member").pct_change())
+                .otherwise(None)
+                .alias("mom_growth"),
 
-        # Calculate YoY growth with null handling
-        pl.when(pl.col("Total Member").is_not_null())
-          .then(pl.col("Total Member").pct_change(12))
-          .otherwise(None)
-          .alias("yoy_growth")
-    ]).with_columns([
-        # Format as percentage with null handling
-        pl.when(pl.col("mom_growth").is_not_null())
-          .then((pl.col("mom_growth") * 100).round(2))
-          .otherwise(None)
-          .alias("MoM Growth (%)"),
+            # Calculate YoY growth with null handling
+            pl.when(pl.col("Total Member").is_not_null())
+                .then(pl.col("Total Member").pct_change(12))
+                .otherwise(None)
+                .alias("yoy_growth")
+        ]).with_columns([
+            # Format as percentage with null handling
+            pl.when(pl.col("mom_growth").is_not_null())
+                .then((pl.col("mom_growth") * 100).round(2))
+                .otherwise(None)
+                .alias("MoM Growth (%)"),
 
-        pl.when(pl.col("yoy_growth").is_not_null())
-          .then((pl.col("yoy_growth") * 100).round(2))
-          .otherwise(None)
-          .alias("YoY Growth (%)")
-    ])
-
+            pl.when(pl.col("yoy_growth").is_not_null())
+                .then((pl.col("yoy_growth") * 100).round(2))
+                .otherwise(None)
+                .alias("YoY Growth (%)")
+        ])
+        return df_final
+    
+    # Process the data
+    df_final = process_data(df, pl)
+    
     # Select and display the results
     display_df = df_final.select([
         "month_count", 
@@ -86,8 +91,9 @@ def _(df, mo, pl):
         page_size=10,
         pagination=True,
     )
-
-    return df_final, table
+    
+    # Last expression is automatically returned in Marimo
+    df_final, table
 
 
 @app.cell
