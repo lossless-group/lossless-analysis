@@ -1,0 +1,7 @@
+README.md
+pyproject.toml
+lossless_analysis_workspace.egg-info/PKG-INFO
+lossless_analysis_workspace.egg-info/SOURCES.txt
+lossless_analysis_workspace.egg-info/dependency_links.txt
+lossless_analysis_workspace.egg-info/requires.txt
+lossless_analysis_workspace.egg-info/top_level.txt
